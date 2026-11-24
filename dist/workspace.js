@@ -8,6 +8,8 @@ import {
   now,
   uid,
 } from "./workspace-store.js";
+import { ORDER_CSV_COLUMNS, ORDER_TEMPLATE_FILENAME, ORDER_TEMPLATE_EXAMPLE } from "./order-template.js";
+import { EtsyCloudUI } from "./etsy-cloud-ui.js";
 
 export const pages = {
   dashboard: "经营看板",
@@ -20,6 +22,7 @@ export const pages = {
   master: "业务设置",
   admin: "高级管理",
   settings: "连接与安全",
+  etsyCloud: "Etsy 订单同步",
 };
 const esc = (v) =>
   String(v ?? "").replace(
@@ -78,7 +81,11 @@ function download(name, content, type = "text/plain;charset=utf-8") {
 }
 
 export class WorkspaceUI {
-  constructor({ root, actor, toast, request, meta, mode = "demo" }) {
+  constructor({ root, actor, toast, request, meta, mode = "demo", apiAdmin = false, apiAdminNotice = "" }) {
+    this.apiAdmin = apiAdmin;
+    this.apiAdminNotice = apiAdminNotice;
+    this.etsyConfigs = [];
+    this.cloud = new EtsyCloudUI(this);
     this.root = root;
     this.actor = actor;
     this.toast = toast;
@@ -173,6 +180,7 @@ export class WorkspaceUI {
     );
   }
   navigate(page) {
+    if (this.page === "etsyCloud" && page !== "etsyCloud") this.cloud.stop = true;
     this.page = page;
     this.query = "";
     this.filter = "";
@@ -195,6 +203,7 @@ export class WorkspaceUI {
       master: () => this.catalogPage(),
       admin: () => this.admin(),
       settings: () => this.settings(),
+      etsyCloud: () => this.cloud.render(),
     };
     this.root.innerHTML = (renderers[this.page] || renderers.dashboard)();
     document.querySelectorAll("[data-page]").forEach((b) => {
@@ -205,7 +214,8 @@ export class WorkspaceUI {
     document.querySelector("#workspaceTitle").textContent =
       pages[this.page] || "工作台";
     document.querySelector("#recordStatus").textContent =
-      `${this.data.orders.filter((o) => !o.archived).length} 笔订单 · 最近保存 ${date(this.data.audit[0]?.at)}`;
+      this.page === "etsyCloud" ? `${this.cloud.total} 笔云端订单 · 不计入浏览器演练订单`
+        : `${this.data.orders.filter((o) => !o.archived).length} 笔订单 · 最近保存 ${date(this.data.audit[0]?.at)}`;
   }
   dialogForm(title, body, onSubmit, submit = "保存", wide = false) {
     this.lastFocus = document.activeElement;
@@ -357,7 +367,7 @@ export class WorkspaceUI {
       this.heading(
         "我的订单",
         "双击订单查看收件资料、商品、原始资料和处理记录。",
-        btn("上传 / 新建订单", "goto", "upload") +
+        btn("Etsy 订单同步", "cloud-open") + btn("上传 / 新建订单", "goto", "upload") +
           btn("导出订单", "export-orders") +
           btn("手工新建订单", "new-order", "", true),
       ) +
@@ -882,7 +892,9 @@ export class WorkspaceUI {
     else if (key === "diagnostics") body = this.diagnosticsPage();
     else body = this.maintenance();
     return (
-      this.heading("高级管理", "用户与权限、外部服务、运行诊断与维护日志。") +
+      this.heading("高级管理", "用户与权限、外部服务、运行诊断与维护日志。",
+        btn("Etsy 订单同步", "cloud-open") + (this.apiAdmin ? btn("Etsy API 配置（管理员）", "etsy-config-open") : "")) +
+      (this.apiAdminNotice ? `<p class="notice">${esc(this.apiAdminNotice)}</p>` : "") +
       this.catalogTabs(
         ["users", "accounts", "diagnostics", "audit", "maintenance"],
         key,
@@ -898,6 +910,47 @@ export class WorkspaceUI {
           `<tr><td>${date(a.at)}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td>${esc(a.target)}</td><td>${esc(a.detail || "—")}</td></tr>`,
       ),
     );
+  }
+  async openEtsyConfig() {
+    if (!this.apiAdmin) throw new Error("此功能仅限服务端验证的站点管理员。");
+    const data = await this.request("/api/bridge?route=admin-etsy-config");
+    this.etsyConfigs = data.items;
+    this.dialogForm("Etsy API 配置 · 仅管理员",
+      `<p class="notice">配置与授权令牌在服务端加密保存。每家店先保存凭据，再点击官方授权。更换应用凭据需重新授权。请在 Etsy 应用中登记回调地址：<code>${esc(location.origin + "/etsy-callback.html")}</code></p>
+      <div class="page-actions">${btn("添加店铺配置", "etsy-config-edit", "", true)}</div>` +
+      table(["店铺 / Shop ID", "配置状态", "凭据", "最近修改", "操作"], this.etsyConfigs.map((row) =>
+        `<tr><td>${esc(row.name)}<small>${esc(row.shopId)}</small></td><td>${tag(row.enabled ? "启用" : "停用")}<small>${esc(row.authorizationStatus)}</small></td><td>${row.hasCredentials ? "已保存（不回显）" : "未配置"}</td><td>${date(row.updatedAt)}<small>${esc(row.updatedBy)}</small></td><td>${btn("修改 / 停用", "etsy-config-edit", row.shopId)}${btn(row.authorized ? "重新授权" : "官方授权", "etsy-authorize", row.shopId)}</td></tr>`)),
+      null, "", true);
+    this.bindDialogActions();
+  }
+  editEtsyConfig(shopId) {
+    if (!this.apiAdmin) throw new Error("此功能仅限服务端验证的站点管理员。");
+    const row = this.etsyConfigs.find((r) => r.shopId === shopId);
+    if (shopId && !row) throw new Error("请刷新配置列表后重试。");
+    this.dialogForm(row ? "修改 Etsy API 配置" : "添加 Etsy 店铺配置",
+      `<p class="notice">不要填写 Etsy 登录密码。应用 Keystring / Shared Secret 只发送到本站后台加密保存，不会回显。${row ? "不更换凭据时，两项密钥均留空；更换时两项同时填写并重新授权。" : "保存后请单独完成该店铺的官方授权。"}</p>` +
+      fields([field("shopId", "Etsy Shop ID", "text", { required: true }),
+        field("name", "店铺名称", "text", { required: true }),
+        field("enabled", "配置状态（不代表同步已运行）", "select", { options: [["false", "停用"], ["true", "启用"]] })],
+        row ? { ...row, enabled: String(row.enabled) } : { enabled: "false" }) +
+      `<div class="form-grid"><div class="form-field"><label for="etsyKeystring">应用 Keystring</label><input id="etsyKeystring" name="keystring" type="password" autocomplete="new-password" maxlength="500" ${row ? "" : "required"}></div>
+      <div class="form-field"><label for="etsySharedSecret">应用 Shared Secret</label><input id="etsySharedSecret" name="sharedSecret" type="password" autocomplete="new-password" maxlength="500" ${row ? "" : "required"}></div></div>`,
+      async (values, form) => {
+        try {
+          await this.request("/api/bridge?route=admin-etsy-config", { method: "POST", body: JSON.stringify({
+            shopId: row?.shopId || values.shopId.trim(), name: values.name, enabled: values.enabled === "true",
+            revision: row?.revision || 0, keystring: values.keystring, sharedSecret: values.sharedSecret,
+          }) });
+          this.toast("API 配置已加密保存，请确认官方授权状态后同步");
+          setTimeout(() => this.openEtsyConfig().catch((e) => this.toast(e.message)), 0);
+        } finally {
+          form.querySelector("#etsyKeystring").value = "";
+          form.querySelector("#etsySharedSecret").value = "";
+        }
+      }, "加密保存", true);
+    queueMicrotask(() => {
+      if (row) this.dialog.querySelector("#field-shopId").readOnly = true;
+    });
   }
   diagnosticsPage() {
     return this.panel(
@@ -959,6 +1012,7 @@ export class WorkspaceUI {
   async change(e) {
     const input = e.target;
     try {
+      if (input.id === "cloudSince") { this.cloud.since = input.value; return; }
       if (input.dataset.files) {
         await this.addFiles([...input.files], input.dataset.files);
         return;
@@ -1037,7 +1091,23 @@ export class WorkspaceUI {
     );
   }
   async action(action, id, el) {
+    if (action === "cloud-open") return this.cloud.open();
+    if (action.startsWith("cloud-")) return this.cloud.action(action.slice(6), id);
     switch (action) {
+      case "etsy-authorize": {
+        if (!this.apiAdmin) throw new Error("请重新登录管理员账号。");
+        const data = await this.request("/api/bridge?route=etsy-authorize", { method: "POST", body: JSON.stringify({ shopId: id }) });
+        const url = new URL(data.url);
+        if (url.origin !== "https://www.etsy.com" || url.pathname !== "/oauth/connect") throw new Error("授权链接无效。");
+        location.assign(url.href);
+        break;
+      }
+      case "etsy-config-open":
+        await this.openEtsyConfig();
+        break;
+      case "etsy-config-edit":
+        this.editEtsyConfig(id);
+        break;
       case "goto":
         document.querySelector(`[data-page="${id}"]`)?.click();
         break;
@@ -1365,25 +1435,8 @@ export class WorkspaceUI {
         break;
       case "download-order-template":
         download(
-          "订单导入模板.csv",
-          csvEncode(
-            [
-              {
-                store: "Hana Metal",
-                recipient: "Test Buyer",
-                country: "US",
-                city: "Seattle",
-                postal: "98101",
-                address: "Example address",
-                product: "Brass bookmark",
-                quantity: 1,
-                amount: 12,
-                currency: "USD",
-                sku: "BM-01",
-              },
-            ],
-            this.orderFields().map((f) => f.key),
-          ),
+          ORDER_TEMPLATE_FILENAME,
+          csvEncode([ORDER_TEMPLATE_EXAMPLE], ORDER_CSV_COLUMNS),
           "text/csv;charset=utf-8",
         );
         break;

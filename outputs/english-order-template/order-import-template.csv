@@ -1,0 +1,2 @@
+﻿"externalId","store","recipient","country","city","postal","address","phone","email","product","quantity","sku","variation","amount","currency","weight","deadline","notes"
+"EXAMPLE-ORDER-001","Hana Metal","Test Buyer","US","Seattle","98101","123 Example Street","","buyer@example.com","Brass bookmark","1","BM-01","Color: Gold; Size: 15 cm","12","USD","90","","Sample data only. Replace before importing."

@@ -1,0 +1,5 @@
+{
+  "keystring": "REPLACE_WITH_ETSY_KEYSTRING",
+  "sharedSecret": "REPLACE_WITH_ETSY_SHARED_SECRET",
+  "redirectUri": "https://localhost:4443/callback"
+}

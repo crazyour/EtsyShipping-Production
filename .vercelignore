@@ -1,0 +1,4 @@
+etsy-local.config.json
+etsy-exports/
+.env*
+test-output/

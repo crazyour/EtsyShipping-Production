@@ -30,7 +30,7 @@ async function serveStatic(response, pathname) {
     response.writeHead(200, {
       "Content-Type": MIME[extname(file)] || "application/octet-stream",
       "Cache-Control": "no-store, max-age=0",
-      "Content-Security-Policy": "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+      "Content-Security-Policy": "default-src 'self'; img-src 'self' data: blob: https://i.etsystatic.com; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
       "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer",
       "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(), geolocation=()"
     });

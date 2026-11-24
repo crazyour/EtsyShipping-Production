@@ -1372,3 +1372,5 @@ dialog::backdrop {
     margin: 14mm;
   }
 }
+/* Keep real order photos legible without changing the existing compact workspace layout. */
+.etsy-order-image { width: 120px; height: 100px; object-fit: contain; }

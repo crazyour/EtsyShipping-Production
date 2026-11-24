@@ -1,3 +1,7 @@
+import { adminSetup, matchesSecret, issueAdminSession, limitAdminLogin, requireAdmin,
+  requireSameOrigin, revokeAdminSession, cookie, listConfigs, saveConfig } from "../lib/admin-config.mjs";
+import { withCloudLock, startAuthorization, completeAuthorization, startSync, stepSync,
+  syncStatus, retrySync, listCloudOrders } from "../lib/etsy-cloud.mjs";
 const DEFAULT_UPSTREAM = "https://shipping.sunfacework.com";
 const routes = {
   runtime: { path: "/api/runtime/status", auth: false, params: [] },
@@ -11,17 +15,18 @@ const routes = {
   channels: { path: "/api/logistics/channels", auth: true, params: [] }
 };
 
-function send(response, status, value) {
+function send(response, status, value, extraHeaders = {}) {
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store, max-age=0",
-    "X-Content-Type-Options": "nosniff"
+    "X-Content-Type-Options": "nosniff", ...extraHeaders
   });
   response.end(JSON.stringify(value));
 }
 
 async function jsonBody(request) {
   if (request.body !== undefined) {
+    if (Buffer.byteLength(typeof request.body === "string" ? request.body : JSON.stringify(request.body)) > 16_384) return null;
     if (typeof request.body === "object" && request.body !== null) return request.body;
     try { return JSON.parse(String(request.body)); } catch { return null; }
   }
@@ -48,10 +53,10 @@ function upstreamBase() {
 function siteAdminCredentials() {
   const userName = (process.env.SITE_ADMIN_USERNAME || "admin").trim();
   const password = process.env.SITE_ADMIN_PASSWORD || "";
-  return { enabled: Boolean(process.env.VERCEL && userName && password), userName, password };
+  return { enabled: Boolean(userName && password), userName, password };
 }
 
-async function forward(request, response, path, { auth = true, body, params = [] } = {}) {
+async function forward(request, response, path, { auth = true, body, params = [], extraHeaders = {} } = {}) {
   const authorization = request.headers.authorization || "";
   if (auth && !/^Bearer [^\s]+$/.test(authorization)) {
     return send(response, 401, { error: "当前登录已失效，请重新登录。" });
@@ -81,7 +86,7 @@ async function forward(request, response, path, { auth = true, body, params = []
     let data;
     try { data = raw ? JSON.parse(raw) : {}; }
     catch { data = { error: upstream.ok ? "服务器返回了非 JSON 数据。" : `服务器返回 ${upstream.status}。` }; }
-    return send(response, upstream.status, data);
+    return send(response, upstream.status, data, extraHeaders);
   } catch (error) {
     return send(response, 502, {
       error: "无法连接生产服务器。请检查服务器状态或稍后重试。",
@@ -95,10 +100,46 @@ export default async function handler(request, response) {
     const url = new URL(request.url || "/", "http://localhost");
     const route = url.searchParams.get("route");
     const method = request.method || "GET";
+    const cloudRoutes = {
+      "etsy-authorize": { method: "POST", run: (input) => startAuthorization(request, input) },
+      "etsy-callback": { method: "POST", run: (input) => completeAuthorization(request, input) },
+      "etsy-sync-start": { method: "POST", run: startSync },
+      "etsy-sync-step": { method: "POST", run: stepSync },
+      "etsy-sync-retry": { method: "POST", run: retrySync },
+      "etsy-sync-status": { method: "GET", run: syncStatus },
+      "etsy-cloud-orders": { method: "GET", run: listCloudOrders },
+    };
+    if (Object.hasOwn(cloudRoutes, route)) {
+      await requireAdmin(request);
+      const endpoint = cloudRoutes[route];
+      if (method !== endpoint.method) return send(response, 405, { error: "不支持此操作。" });
+      if (method === "POST") requireSameOrigin(request);
+      const input = method === "POST" ? await jsonBody(request) : Object.fromEntries(url.searchParams);
+      return send(response, 200, await endpoint.run(input));
+    }
+    if (route === "admin-session" && method === "GET") {
+      try { const userName = await requireAdmin(request); return send(response, 200, { admin: true, userName }); }
+      catch (e) { if (e.status !== 403) throw e; return send(response, 200, { admin: false }); }
+    }
+    if (route === "admin-logout" && method === "POST") {
+      requireSameOrigin(request);
+      await revokeAdminSession(request);
+      return send(response, 200, { ok: true }, { "Set-Cookie": cookie("", 0) });
+    }
+    if (route === "admin-etsy-config") {
+      const actor = await requireAdmin(request);
+      if (method === "GET") return send(response, 200, { items: await listConfigs() });
+      if (method === "POST") {
+        requireSameOrigin(request);
+        const data = await jsonBody(request);
+        return send(response, 200, { item: await withCloudLock(() => saveConfig(data, actor)) });
+      }
+      return send(response, 405, { error: "不支持此操作。" });
+    }
     if (route === "meta" && method === "GET") {
       return send(response, 200, {
         upstream: upstreamBase(), profile: "production", clientVersion: "3.0.2",
-        demoEnabled: !process.env.VERCEL
+        demoEnabled: !process.env.VERCEL, siteAdminConfigured: siteAdminCredentials().enabled
       });
     }
     if (route === "login" && method === "POST") {
@@ -109,11 +150,20 @@ export default async function handler(request, response) {
         return send(response, 400, { error: "请输入有效的用户名和密码。" });
       }
       const siteAdmin = siteAdminCredentials();
-      if (siteAdmin.enabled && userName === siteAdmin.userName && password === siteAdmin.password) {
-        return send(response, 200, { demoAccess: true, userName, roles: ["管理员"] });
+      if (siteAdmin.enabled && userName === siteAdmin.userName) {
+        const setup = adminSetup();
+        if (setup.ready) {
+          requireSameOrigin(request);
+          await limitAdminLogin();
+        }
+        if (!matchesSecret(password, siteAdmin.password)) return send(response, 401, { error: "用户名或密码错误。" });
+        const sessionCookie = setup.ready ? await issueAdminSession(request) : cookie("", 0);
+        return send(response, 200, { demoAccess: true, userName, roles: ["管理员"],
+          apiAdmin: setup.ready, apiAdminNotice: setup.reason || "" }, { "Set-Cookie": sessionCookie });
       }
+      await revokeAdminSession(request);
       return forward(request, response, "/api/auth/login", {
-        auth: false, body: { userName, password }
+        auth: false, body: { userName, password }, extraHeaders: { "Set-Cookie": cookie("", 0) }
       });
     }
     if (route === "change-password" && method === "POST") {
@@ -134,7 +184,7 @@ export default async function handler(request, response) {
       return forward(request, response, config.path, config);
     }
     return send(response, 404, { error: "未知接口。" });
-  } catch {
-    return send(response, 500, { error: "服务配置无效或请求处理失败。" });
+  } catch (error) {
+    return send(response, error.status || 500, { error: error.status ? error.message : "服务配置无效或请求处理失败。" });
   }
 }

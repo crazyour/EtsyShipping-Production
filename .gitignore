@@ -1,3 +1,5 @@
 .vercel
 .env*
 test-output/
+etsy-local.config.json
+etsy-exports/

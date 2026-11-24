@@ -9,6 +9,8 @@ const state = {
   workspace: null,
   live: {},
   liveLoading: false,
+  apiAdmin: false,
+  apiAdminNotice: "",
 };
 const esc = (v) =>
   String(v ?? "").replace(
@@ -39,6 +41,7 @@ async function request(path, options = {}) {
     ...options,
     cache: "no-store",
     headers: {
+      "X-Admin-Action": "1",
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}),
     },
@@ -73,6 +76,17 @@ async function checkServer() {
   }
 }
 function clearSession() {
+  state.apiAdmin = false;
+  state.apiAdminNotice = "";
+  if (state.workspace) {
+    state.workspace.apiAdmin = false;
+    state.workspace.apiAdminNotice = "";
+    state.workspace.etsyConfigs = [];
+    state.workspace.cloud.reset();
+  }
+  $("#workDialog")?.close();
+  $("#workDialog")?.replaceChildren();
+  $("#pageContent")?.replaceChildren();
   state.token = "";
   state.user = "";
   for (const k of [
@@ -91,12 +105,12 @@ function enterApp(mode, user) {
   $("#currentUser").textContent = user;
   $("#userInitial").textContent = user.slice(0, 1).toUpperCase();
   $("#currentRole").textContent =
-    mode === "demo" ? "网页演练管理员" : "生产账号 · 只读";
+    mode === "demo" ? (state.apiAdmin ? "站点管理员" : "网页演练管理员") : "生产账号 · 只读";
   $("#environmentLabel").textContent =
     mode === "demo" ? "WEB WORKSPACE" : "PRODUCTION";
   $("#modeNotice").textContent =
     mode === "demo"
-      ? "演练工作区 · 数据保存在当前浏览器，未向生产系统提交"
+      ? "演练工作区保存在当前浏览器；Etsy 订单同步独立保存在网站后台"
       : "生产账号 · 原服务器数据；网页新增写入流程请在演练工作区使用";
   if (mode === "demo") {
     try {
@@ -107,8 +121,12 @@ function enterApp(mode, user) {
           toast,
           request,
           meta: state.meta,
+          apiAdmin: state.apiAdmin,
+          apiAdminNotice: state.apiAdminNotice,
         });
       state.workspace.actor = user;
+      state.workspace.apiAdmin = state.apiAdmin;
+      state.workspace.apiAdminNotice = state.apiAdminNotice;
       state.workspace.store.actor = user;
     } catch (e) {
       toast(e.message);
@@ -150,6 +168,7 @@ async function login(e) {
   try {
     if (
       state.meta.demoEnabled &&
+      !state.meta.siteAdminConfigured &&
       userName === "admin" &&
       password === "admin"
     ) {
@@ -163,6 +182,9 @@ async function login(e) {
     });
     if (pick(data, "demoAccess")) {
       clearSession();
+      // Authority comes only from the server-issued HttpOnly session, never local roles.
+      state.apiAdmin = data.apiAdmin === true;
+      state.apiAdminNotice = data.apiAdminNotice || "";
       enterApp("demo", pick(data, "userName") || userName);
       return;
     }
@@ -287,8 +309,13 @@ $("#showPassword").addEventListener("click", () => {
   $("#password").type = show ? "text" : "password";
   $("#showPassword").textContent = show ? "隐藏" : "显示";
 });
-$("#demoButton").addEventListener("click", () => {
-  if (state.meta.demoEnabled) enterApp("demo", "admin");
+$("#demoButton").addEventListener("click", async () => {
+  if (!state.meta.demoEnabled) return;
+  try {
+    await request("/api/bridge?route=admin-logout", { method: "POST", body: "{}" });
+    clearSession();
+    enterApp("demo", "admin");
+  } catch (e) { toast(e.message); }
 });
 document
   .querySelectorAll("[data-page]")
@@ -298,6 +325,8 @@ $("#menuButton").addEventListener("click", () => {
   $("#menuButton").setAttribute("aria-expanded", String(open));
 });
 $("#logoutButton").addEventListener("click", async () => {
+  try { await request("/api/bridge?route=admin-logout", { method: "POST", body: "{}" }); }
+  catch (e) { toast("无法确认管理员会话已注销，请重试。" + e.message); return; }
   if (state.mode === "live")
     try {
       await request("/api/bridge?route=logout", { method: "POST", body: "{}" });
@@ -309,6 +338,7 @@ $("#refreshButton").addEventListener("click", async () => {
   if (state.mode === "live") loadLive();
   else {
     try {
+      if (state.workspace?.page === "etsyCloud") { await state.workspace.cloud.open(); return; }
       const { WorkspaceStore } = await import("./workspace-store.js");
       state.workspace.store = new WorkspaceStore(localStorage, state.user);
       state.workspace.render();
@@ -362,5 +392,11 @@ window.addEventListener("storage", (e) => {
 });
 checkServer();
 if (state.token && state.user) enterApp("live", state.user);
+else request("/api/bridge?route=admin-session").then((data) => {
+  if (data.admin === true && $("#appView").hidden) {
+    state.apiAdmin = true;
+    enterApp("demo", data.userName);
+  }
+}).catch(() => {});
 if ("serviceWorker" in navigator)
   navigator.serviceWorker.register("/sw.js").catch(() => {});
