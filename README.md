@@ -13,8 +13,9 @@
 1. 将此文件夹作为项目根目录导入 Vercel，框架选 **Other**。若提交的是包含本文件夹的仓库，将 Root Directory 设为 `EtsyShipping-Mac-Web`。
 2. `vercel.json` 已配置构建检查、`dist` 静态输出和 `/api/bridge` Function。无需配置数据库、持久磁盘或额外 NPM 依赖。
 3. 默认上游是 `https://shipping.sunfacework.com`。如服务器地址不同，在 Vercel 项目环境变量中设置 `ETSY_SERVER_URL`，值为可从 Vercel 访问的 HTTPS 服务根地址，然后重新部署。请勿在项目或浏览器代码中填写真实账号、密码或 API 密钥。
-4. 发布后访问 `/api/bridge?route=meta`，应返回 JSON 且 `demoEnabled` 为 `false`。访问 `/api/bridge?route=runtime` 应返回生产服务状态；如果是 502，需先修复原服务器或网络连通性。
-5. 用原生产账号测试登录和只读页面。若网站包含真实订单及客户数据，发布前应按团队要求设置访问权限和域名。
+4. 如需开启 Vercel 站点演示管理员，设置 `SITE_ADMIN_USERNAME` 和 `SITE_ADMIN_PASSWORD`。凭据只在服务端验证，登录后只显示演示数据，不会获得原生产服务器权限。
+5. 发布后访问 `/api/bridge?route=meta`，应返回 JSON 且 `demoEnabled` 为 `false`。访问 `/api/bridge?route=runtime` 应返回生产服务状态；如果是 502，需先修复原服务器或网络连通性。
+6. 用原生产账号测试登录和只读页面。若网站包含真实订单及客户数据，发布前应按团队要求设置访问权限和域名。
 
 也可以在此目录运行 `npx vercel` 创建预览部署，确认后运行 `npx vercel --prod` 发布生产版本。首次使用需要先登录 Vercel CLI。当前 Mac 上直接输入 `vercel` 会调用同名的 Python 程序，因此请使用 `npx vercel`。
 

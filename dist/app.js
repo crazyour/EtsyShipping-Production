@@ -143,7 +143,7 @@ function enterApp(mode) {
   const name = mode === "demo" ? state.demoUserName : state.userName;
   elements.currentUser.textContent = name;
   elements.userInitial.textContent = name.slice(0, 1).toUpperCase();
-  elements.currentRole.textContent = mode === "demo" ? (name === "admin" ? "本地演示管理员 · 不写入生产" : "演示模式 · 不写入生产") : (state.roles.join(" / ") || "生产用户");
+  elements.currentRole.textContent = mode === "demo" ? (name === "admin" ? "站点演示管理员 · 不写入生产" : "演示模式 · 不写入生产") : (state.roles.join(" / ") || "生产用户");
   showPage("dashboard");
   if (mode === "live") loadLiveData();
 }
@@ -180,6 +180,13 @@ async function login(event) {
   elements.loginButton.textContent = "正在登录…";
   try {
     const data = await request("/api/bridge?route=login", { method: "POST", body: JSON.stringify({ userName, password }) });
+    if (pick(data, "demoAccess") === true) {
+      state.demoUserName = pick(data, "userName") || userName;
+      elements.password.value = "";
+      enterApp("demo");
+      toast("已进入站点演示管理工作台，不会写入生产数据。");
+      return;
+    }
     if (!pick(data, "accessToken")) throw new Error("服务器登录响应缺少令牌，请联系管理员检查接口。");
     saveSession(data);
     if (pick(data, "mustChangePassword")) {

@@ -45,6 +45,12 @@ function upstreamBase() {
   return url.origin + url.pathname.replace(/\/$/, "");
 }
 
+function siteAdminCredentials() {
+  const userName = (process.env.SITE_ADMIN_USERNAME || "admin").trim();
+  const password = process.env.SITE_ADMIN_PASSWORD || "";
+  return { enabled: Boolean(process.env.VERCEL && userName && password), userName, password };
+}
+
 async function forward(request, response, path, { auth = true, body, params = [] } = {}) {
   const authorization = request.headers.authorization || "";
   if (auth && !/^Bearer [^\s]+$/.test(authorization)) {
@@ -101,6 +107,10 @@ export default async function handler(request, response) {
       const password = typeof data?.password === "string" ? data.password : "";
       if (!userName || !password || userName.length > 100 || password.length > 500) {
         return send(response, 400, { error: "请输入有效的用户名和密码。" });
+      }
+      const siteAdmin = siteAdminCredentials();
+      if (siteAdmin.enabled && userName === siteAdmin.userName && password === siteAdmin.password) {
+        return send(response, 200, { demoAccess: true, userName, roles: ["管理员"] });
       }
       return forward(request, response, "/api/auth/login", {
         auth: false, body: { userName, password }

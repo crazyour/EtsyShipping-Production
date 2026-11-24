@@ -70,6 +70,35 @@ test("登录仅向原服务发送用户名和密码", async () => {
   } finally { globalThis.fetch = original; }
 });
 
+test("Vercel 站点管理员凭据仅在服务端验证", async () => {
+  const originalVercel = process.env.VERCEL;
+  const originalUserName = process.env.SITE_ADMIN_USERNAME;
+  const originalPassword = process.env.SITE_ADMIN_PASSWORD;
+  const originalFetch = globalThis.fetch;
+  let forwarded = false;
+  process.env.VERCEL = "1";
+  process.env.SITE_ADMIN_USERNAME = "admin";
+  process.env.SITE_ADMIN_PASSWORD = "admin";
+  globalThis.fetch = async () => { forwarded = true; return Response.json({}); };
+  try {
+    const result = await invoke("POST", "/api/bridge?route=login", {
+      body: { userName: "admin", password: "admin" }
+    });
+    assert.equal(result.status, 200);
+    assert.equal(result.data.demoAccess, true);
+    assert.deepEqual(result.data.roles, ["管理员"]);
+    assert.equal(forwarded, false);
+  } finally {
+    if (originalVercel === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = originalVercel;
+    if (originalUserName === undefined) delete process.env.SITE_ADMIN_USERNAME;
+    else process.env.SITE_ADMIN_USERNAME = originalUserName;
+    if (originalPassword === undefined) delete process.env.SITE_ADMIN_PASSWORD;
+    else process.env.SITE_ADMIN_PASSWORD = originalPassword;
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("上游故障返回可读的 502 错误", async () => {
   const original = globalThis.fetch;
   globalThis.fetch = async () => { throw new Error("private network detail"); };
