@@ -6,7 +6,7 @@ const browser = await chromium.launch({ headless: true,
   ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
 const base = process.env.TEST_URL || "http://127.0.0.1:4192";
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce" });
-const errors = [], calls = []; let signedIn = false, strong = true, job = null, step = 0, orders = [];
+const errors = [], calls = []; let signedIn = false, configured = true, job = null, step = 0, orders = [];
 const order = { shopId: "12345", shopName: "Hana Metal", receiptId: "98765", recipient: "Private Buyer", country: "US",
   city: "Seattle", region: "WA", postal: "00123", address: "123 Test Street", status: "paid", isPaid: true, isShipped: false,
   total: { amount: 1200, divisor: 100, currency_code: "USD" },
@@ -20,8 +20,8 @@ await page.route("**/api/bridge?*", async (route) => {
   const request = route.request(), name = new URL(request.url()).searchParams.get("route"); calls.push(name);
   let json = {};
   if (name === "meta") json = { demoEnabled: false, siteAdminConfigured: true };
-  if (name === "admin-session") json = { admin: signedIn && strong, userName: "admin" };
-  if (name === "login") { signedIn = true; json = { demoAccess: true, userName: "admin", apiAdmin: strong, apiAdminNotice: strong ? "" : "真实 API 配置已锁定：请先配置强密码与服务端存储。" }; }
+  if (name === "admin-session") json = { admin: signedIn && configured, userName: "admin" };
+  if (name === "login") { signedIn = true; json = { demoAccess: true, userName: "admin", apiAdmin: configured, apiAdminNotice: configured ? "" : "尚未配置服务端持久存储，不能保存 API 密钥。" }; }
   if (name === "admin-logout") signedIn = false;
   if (name === "admin-etsy-config") json = { items: [{ shopId: "12345", name: "Hana Metal", enabled: true, authorized: true,
     hasCredentials: true, revision: 2, updatedAt: new Date().toISOString(), updatedBy: "admin", authorizationStatus: "已授权" }] };
@@ -84,8 +84,8 @@ try {
   await page.locator("#loginView").waitFor({ state: "visible" });
   assert.equal(await page.locator("#pageContent").textContent(), "");
   assert.equal(await page.locator("#loginView").isVisible(), true);
-  strong = false; await login(); await openCloud();
-  await page.getByText("真实 API 配置已锁定：请先配置强密码与服务端存储。", { exact: true }).waitFor();
+  configured = false; await login(); await openCloud();
+  await page.getByText("尚未配置服务端持久存储，不能保存 API 密钥。", { exact: true }).waitFor();
   assert.equal(await page.locator('[data-action="cloud-start"]').count(), 0);
   assert.equal(await page.getByText("Private Buyer", { exact: true }).count(), 0);
   assert.deepEqual(errors, []);

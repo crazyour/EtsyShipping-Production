@@ -115,19 +115,30 @@ test("CSRF, expired sessions, password changes and broken storage fail closed", 
     assert.doesNotMatch(JSON.stringify(result), /private storage|test-redis-secret/);
   } finally { f.restore(); }
 });
-test("default password cannot manage real API secrets, and missing encryption/storage never falls back to browser storage", async () => {
+test("configured admin password has no strength gate, while authentication and encrypted storage remain required", async () => {
   const f = fixture();
   try {
     process.env.SITE_ADMIN_PASSWORD = "admin";
     const login = await f.call("login", { method: "POST", body: { userName: "admin", password: "admin" } });
     assert.equal(login.status, 200);
-    assert.equal(login.data.apiAdmin, false);
-    assert.match(login.data.apiAdminNotice, /强密码/);
+    assert.equal(login.data.apiAdmin, true);
+    assert.equal(login.data.apiAdminNotice, "");
+    const session = sessionOf(login);
+    assert.equal((await f.call("admin-etsy-config", { session, method: "POST", body: config })).status, 200);
+    assert.equal((await f.call("admin-etsy-config", { session })).status, 200);
     assert.equal((await f.call("admin-etsy-config")).status, 403);
-    assert.equal(f.requests.length, 0);
-    process.env.SITE_ADMIN_PASSWORD = password;
+    assert.equal((await f.call("login", { method: "POST", body: { userName: "admin", password: "wrong" } })).status, 401);
+    process.env.SITE_ADMIN_PASSWORD = "";
+    assert.equal(adminSetup().ready, false);
+    process.env.SITE_ADMIN_PASSWORD = "a";
+    assert.equal(adminSetup().ready, true);
+    process.env.SITE_ADMIN_PASSWORD = "admin";
     delete process.env.ETSY_CONFIG_ENCRYPTION_KEY;
     assert.equal(adminSetup().ready, false);
+    const locked = await f.call("login", { method: "POST", body: { userName: "admin", password: "admin" } });
+    assert.equal(locked.data.apiAdmin, false);
+    assert.match(locked.data.apiAdminNotice, /加密密钥/);
+    assert.equal((await f.call("admin-etsy-config", { session })).status, 403);
     process.env.ETSY_CONFIG_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
     process.env.UPSTASH_REDIS_REST_URL = "https://evil.example";
     assert.equal(adminSetup().ready, false);
