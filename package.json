@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.mjs",
     "build": "npm run check && npm test",
-    "check": "node --check server.mjs && node --check api/bridge.js && node --check dist/app.js && node --check dist/sw.js",
+    "check": "node --check server.mjs && node --check api/bridge.js && node --check dist/app.js && node --check dist/workspace.js && node --check dist/workspace-store.js && node --check dist/sw.js",
     "test": "node --test test/*.test.mjs"
   },
   "engines": {
