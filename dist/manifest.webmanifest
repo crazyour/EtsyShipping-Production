@@ -1,0 +1,9 @@
+{
+  "name": "EtsyShipping Mac 工作台",
+  "short_name": "EtsyShipping",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f7f8",
+  "theme_color": "#102a43",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

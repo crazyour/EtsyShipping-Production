@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102a43">
+  <meta name="description" content="EtsyShipping 订单与物流工作台">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=3">
+  <title>EtsyShipping · 物流工作台</title>
+</head>
+<body>
+  <div id="loginView" class="login-shell">
+    <section class="login-brand" aria-labelledby="loginTitle">
+      <div class="shipping-mark" aria-hidden="true"><span>ES</span></div>
+      <div>
+        <p class="brand-name">EtsyShipping</p>
+        <h1 id="loginTitle">把订单送到该去的地方。</h1>
+        <p class="brand-copy">连接现有生产服务器，在浏览器中查看订单、物流和仓库工作。</p>
+      </div>
+      <div class="route-line" aria-hidden="true"><i></i><i></i><i></i></div>
+      <p class="version-note">兼容原 Windows 客户端 3.0.2</p>
+    </section>
+
+    <main class="login-panel">
+      <div class="login-card">
+        <div class="login-heading">
+          <div>
+            <h2>登录生产工作台</h2>
+            <p>使用原系统管理员分配的账号。</p>
+          </div>
+          <div id="serverBadge" class="server-badge checking"><span></span>正在检查</div>
+        </div>
+
+        <form id="loginForm" novalidate>
+          <label for="userName">用户名</label>
+          <input id="userName" name="userName" autocomplete="username" placeholder="输入用户名" required>
+          <label for="password">密码</label>
+          <div class="password-wrap">
+            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="输入密码" required>
+            <button id="showPassword" class="text-button" type="button" aria-label="显示密码">显示</button>
+          </div>
+          <p id="loginError" class="form-error" role="alert" hidden></p>
+          <button id="loginButton" class="primary-button" type="submit">登录</button>
+        </form>
+
+        <div id="demoDivider" class="login-divider" hidden><span>服务器暂不可用？</span></div>
+        <button id="demoButton" class="secondary-button" type="button" hidden>进入演示工作台</button>
+        <p id="demoCredential" class="demo-credential" hidden>本地演示账号：<strong>admin</strong>　密码：<strong>admin</strong></p>
+        <p class="security-note">密码不会保存；登录令牌仅保留在当前标签页。</p>
+      </div>
+    </main>
+  </div>
+
+  <div id="appView" class="app-shell" hidden>
+    <aside class="sidebar">
+      <div class="side-brand">
+        <div class="shipping-mark compact"><span>ES</span></div>
+        <div><strong>EtsyShipping</strong><small>物流工作台</small></div>
+      </div>
+      <nav id="mainNav" aria-label="主要功能">
+        <button data-page="dashboard" class="active"><span>总</span>今日总览</button>
+        <button data-page="orders"><span>单</span>订单与复核</button>
+        <button data-page="shipping"><span>运</span>物流与异常</button>
+        <button data-page="warehouse"><span>仓</span>仓库与打印</button>
+        <button data-page="master"><span>资</span>基础资料</button>
+        <button data-page="admin"><span>管</span>系统管理</button>
+      </nav>
+      <div class="side-foot">
+        <button id="settingsButton" class="side-link">连接与安全</button>
+        <button id="logoutButton" class="side-link">退出工作台</button>
+      </div>
+    </aside>
+
+    <div class="app-main">
+      <header class="topbar">
+        <button id="menuButton" class="menu-button" aria-label="打开导航" aria-expanded="false">菜单</button>
+        <div class="environment"><span class="env-dot"></span><strong>Production</strong><span id="connectionText">检查连接中</span></div>
+        <div class="top-actions">
+          <button id="refreshButton" class="plain-button">刷新</button>
+          <div class="user-chip"><span id="userInitial">演</span><div><strong id="currentUser">演示用户</strong><small id="currentRole">演示模式</small></div></div>
+        </div>
+      </header>
+
+      <main id="pageContent" class="page-content" tabindex="-1"></main>
+      <nav id="mobileNav" class="mobile-nav" aria-label="移动端导航">
+        <button data-page="dashboard" class="active">总览</button>
+        <button data-page="orders">订单</button>
+        <button data-page="shipping">物流</button>
+        <button data-page="warehouse">仓库</button>
+        <button data-page="admin">管理</button>
+      </nav>
+    </div>
+  </div>
+
+  <dialog id="passwordDialog">
+    <form id="passwordForm" method="dialog" class="dialog-card">
+      <div class="dialog-heading"><h2>修改初始密码</h2><button value="cancel" aria-label="关闭">关闭</button></div>
+      <p>当前账号要求首次登录后立即修改密码。</p>
+      <label for="currentPassword">当前密码</label>
+      <input id="currentPassword" type="password" autocomplete="current-password">
+      <label for="newPassword">新密码</label>
+      <input id="newPassword" type="password" autocomplete="new-password">
+      <label for="confirmPassword">再次输入新密码</label>
+      <input id="confirmPassword" type="password" autocomplete="new-password">
+      <p id="passwordError" class="form-error" hidden></p>
+      <button id="changePasswordButton" class="primary-button" value="default">修改并重新登录</button>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js?v=3" type="module"></script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { Readable } from "node:stream";
+import handler from "../api/bridge.js";
+
+async function invoke(method, url, { authorization, body } = {}) {
+  const request = Object.assign(Readable.from([]), {
+    method, url, headers: authorization ? { authorization } : {}
+  });
+  if (body !== undefined) request.body = body;
+  const result = { status: 0, headers: {}, data: null };
+  const response = {
+    writeHead(status, headers) { result.status = status; result.headers = headers; },
+    end(value) { result.data = JSON.parse(value); }
+  };
+  await handler(request, response);
+  return result;
+}
+
+test("Vercel 关闭演示入口并限制转发路由", async () => {
+  const original = process.env.VERCEL;
+  process.env.VERCEL = "1";
+  try {
+    const meta = await invoke("GET", "/api/bridge?route=meta");
+    assert.equal(meta.status, 200);
+    assert.equal(meta.data.demoEnabled, false);
+  } finally {
+    if (original === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = original;
+  }
+  assert.equal((await invoke("GET", "/api/bridge?route=unknown")).status, 404);
+  assert.equal((await invoke("POST", "/api/bridge?route=orders")).status, 404);
+  assert.equal((await invoke("GET", "/api/bridge?route=orders")).status, 401);
+  assert.equal((await invoke("POST", "/api/bridge?route=login", { body: {} })).status, 400);
+});
+
+test("只转发许可的路径、参数和授权头", async () => {
+  const original = globalThis.fetch;
+  let seen;
+  globalThis.fetch = async (url, options) => {
+    seen = { url, options };
+    return Response.json({ items: [] });
+  };
+  try {
+    const result = await invoke("GET", "/api/bridge?route=orders&page=2&pageSize=20&url=https://evil.example", {
+      authorization: "Bearer test-token"
+    });
+    assert.equal(result.status, 200);
+    assert.equal(seen.url, "https://shipping.sunfacework.com/api/orders?page=2&pageSize=20");
+    assert.equal(seen.options.headers.Authorization, "Bearer test-token");
+    assert.equal(result.headers["Cache-Control"], "no-store, max-age=0");
+  } finally { globalThis.fetch = original; }
+});
+
+test("登录仅向原服务发送用户名和密码", async () => {
+  const original = globalThis.fetch;
+  let seen;
+  globalThis.fetch = async (url, options) => {
+    seen = { url, options };
+    return Response.json({ accessToken: "token" });
+  };
+  try {
+    const result = await invoke("POST", "/api/bridge?route=login", {
+      body: { userName: " user ", password: "secret", extra: "ignored" }
+    });
+    assert.equal(result.status, 200);
+    assert.equal(seen.url, "https://shipping.sunfacework.com/api/auth/login");
+    assert.deepEqual(JSON.parse(seen.options.body), { userName: "user", password: "secret" });
+    assert.equal(seen.options.headers.Authorization, undefined);
+  } finally { globalThis.fetch = original; }
+});
+
+test("上游故障返回可读的 502 错误", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("private network detail"); };
+  try {
+    const result = await invoke("GET", "/api/bridge?route=runtime");
+    assert.equal(result.status, 502);
+    assert.match(result.data.error, /无法连接生产服务器/);
+    assert.doesNotMatch(JSON.stringify(result.data), /private network detail/);
+  } finally { globalThis.fetch = original; }
+});
