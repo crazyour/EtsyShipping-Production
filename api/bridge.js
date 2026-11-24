@@ -2,6 +2,7 @@ import { adminSetup, matchesSecret, issueAdminSession, limitAdminLogin, requireA
   requireSameOrigin, revokeAdminSession, cookie, listConfigs, saveConfig } from "../lib/admin-config.mjs";
 import { withCloudLock, startAuthorization, completeAuthorization, startSync, stepSync,
   syncStatus, retrySync, listCloudOrders } from "../lib/etsy-cloud.mjs";
+import { configureServer, serverSetupStatus } from "../lib/server-setup.mjs";
 const DEFAULT_UPSTREAM = "https://shipping.sunfacework.com";
 const routes = {
   runtime: { path: "/api/runtime/status", auth: false, params: [] },
@@ -100,6 +101,10 @@ export default async function handler(request, response) {
     const url = new URL(request.url || "/", "http://localhost");
     const route = url.searchParams.get("route");
     const method = request.method || "GET";
+    if (route === "admin-server-config") {
+      if (method !== "POST") return send(response, 405, { error: "服务器配置需要 POST 并重新验证管理员密码。" });
+      return send(response, 200, await configureServer(request, await jsonBody(request)));
+    }
     const cloudRoutes = {
       "etsy-authorize": { method: "POST", run: (input) => startAuthorization(request, input) },
       "etsy-callback": { method: "POST", run: (input) => completeAuthorization(request, input) },
@@ -118,7 +123,8 @@ export default async function handler(request, response) {
       return send(response, 200, await endpoint.run(input));
     }
     if (route === "admin-session" && method === "GET") {
-      try { const userName = await requireAdmin(request); return send(response, 200, { admin: true, userName }); }
+      try { const userName = await requireAdmin(request); return send(response, 200, { admin: true, userName,
+        serverConfigAdmin: true, serverConfig: serverSetupStatus() }); }
       catch (e) { if (e.status !== 403) throw e; return send(response, 200, { admin: false }); }
     }
     if (route === "admin-logout" && method === "POST") {
@@ -159,6 +165,7 @@ export default async function handler(request, response) {
         if (!matchesSecret(password, siteAdmin.password)) return send(response, 401, { error: "用户名或密码错误。" });
         const sessionCookie = setup.ready ? await issueAdminSession(request) : cookie("", 0);
         return send(response, 200, { demoAccess: true, userName, roles: ["管理员"],
+          serverConfigAdmin: true, serverConfig: serverSetupStatus(),
           apiAdmin: setup.ready, apiAdminNotice: setup.reason || "" }, { "Set-Cookie": sessionCookie });
       }
       await revokeAdminSession(request);

@@ -96,6 +96,30 @@
 
 ## 安全与运行范围
 
+### 管理员在网页配置服务器
+
+入口：使用站点管理员登录后，进入「高级管理 → 服务器配置（管理员）」。即使数据库和加密密钥尚未配置，此入口仍可显示；普通生产账号、浏览器演练角色以及未经服务端验证的本地演练登录不能获得此权限。
+
+1. 将含此功能的版本部署到当前 Vercel 项目的 **Production** 环境。已有 `SITE_ADMIN_USERNAME` / `SITE_ADMIN_PASSWORD` 仍用于确认管理员身份，不会被这个页面修改。
+2. 在页面重新输入管理员密码，并填写临时 Vercel Token。Token 需有当前团队 / 项目的环境变量读取和写入权限；不要把 Token 发到聊天或提交到仓库。
+3. 点击「检查已保存配置」，查看哪些配置尚未填写。检查只返回是否已保存、是否被当前部署加载，不回显任何密钥值。
+4. 补全缺失的加密密钥、Upstash REST URL、Upstash 读写 Token、正式网站源地址。新数据库可用「生成随机密钥」生成 32 字节随机密钥，并通过「复制密钥备份」自行保存到密码管理器；恢复已有数据库必须使用原加密密钥，不要生成新密钥。
+5. 勾选备份与目标确认，点击「保存到 Vercel（需重新部署）」。后台仅新增当前项目的 Production 环境变量，不覆盖已存在的配置。
+6. 打开 Vercel 重新部署，再登录网站配置 Etsy 店铺。**保存不会修改当前函数进程的环境，也不会自动重新部署。** 若提示部分成功或结果不确定，先检查已保存配置；不要直接重新生成密钥再提交。
+
+该入口调用 Vercel 官方 API，临时 Vercel Token 只在当次请求中用于鉴权，不写入环境变量、数据库、localStorage、sessionStorage 或演练备份；提交后清空表单中的 Token 和管理员密码。新设置以 Vercel `sensitive` 环境变量保存。网站不会创建 Upstash 数据库，也不声称已验证数据库实际可用性。
+
+安全边界：
+
+- `POST /api/bridge?route=admin-server-config` 每次重新验证站点管理员密码、同源请求和 Vercel Token 对目标项目的权限；不依赖尚未初始化的 Redis 会话。初始配置权限不授予真实订单读取权限。
+- 写入项目 / 团队固定绑定于 `lib/server-setup.mjs` 中本项目的部署标识，且必须与 Vercel 运行时的 `VERCEL_PROJECT_ID` 一致。浏览器不能指定项目、团队、接口地址、任意变量名或目标环境。仅允许表格中的四项业务配置，不接受修改管理员密码或保存 Vercel Token。
+- 本地、预览部署和项目标识不匹配时禁止写入正式配置。如果提示系统环境变量缺失，请在 Vercel 项目中开启 **Automatically expose System Environment Variables** 并重新部署；若迁移到另一个项目，须先核对并更新服务端部署绑定，不能在网页随意切换目标。
+- 已配置变量，包括 Vercel 已保存但尚未重新部署的变量，均不覆盖。创建请求不使用 `upsert`，并发初始化冲突由 Vercel 拒绝。通过团队共享变量接口按当前项目筛选检查；若项目关联共享环境变量，或 Token 无权检查共享配置，本入口停止写入，避免遮蔽共享配置。配置过程中不要同时在 Vercel 修改或关联环境变量。
+- 首次初始化使用进程内每 15 分钟 30 次的补充限流；这不是跨实例防暴力破解保证。数据库配置完整后，还会应用已有的跨实例管理员验证限流。保留 `admin / admin` 仍有风险，Vercel Token 是独立的高权限凭据，请使用短有效期 Token，并在完成后撤销；不要在不可信的网站输入。
+- 不回传 Vercel 原始错误、请求体或环境变量值。API 返回部分成功、超时或无法确认结果时，不自动重试保存，不宣称全部成功。
+
+实现依据 [Vercel 环境变量写入 API](https://vercel.com/docs/rest-api/projects/create-one-or-more-environment-variables)、[环境变量查询 API](https://vercel.com/docs/rest-api/projects/retrieve-the-environment-variables-of-a-project-by-id-or-name)、[官方 SDK 共享变量接口](https://github.com/vercel/sdk/blob/main/src/funcs/environmentListSharedEnvVariable.ts) 与 [系统环境变量](https://vercel.com/docs/environment-variables/system-environment-variables)。配置和权限采用模拟服务测试；实际 Token 和线上配置仍须由管理员在正式网站填写。
+
 ### 仅管理员配置 Etsy API
 
 “高级管理 → Etsy API 配置（管理员）”仅向经过服务端验证的站点管理员开放。默认管理员**用户名仍为 `admin`**，以 `SITE_ADMIN_USERNAME` 的配置为准；浏览器演练成员的角色、用户名或生产服务器的普通登录令牌均不能授予此权限。

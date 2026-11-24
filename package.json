@@ -7,7 +7,7 @@
     "start": "node server.mjs",
     "etsy:download": "node scripts/etsy-download.mjs",
     "build": "npm run check && npm test",
-    "check": "node --check server.mjs && node --check api/bridge.js && node --check lib/admin-config.mjs && node --check lib/etsy-cloud.mjs && node --check dist/etsy-cloud-ui.js && node --check dist/etsy-callback.js && node --check dist/app.js && node --check dist/workspace.js && node --check dist/workspace-store.js && node --check dist/etsy-orders.js && node --check scripts/etsy-client.mjs && node --check scripts/etsy-download.mjs && node --check dist/sw.js",
+    "check": "node --check server.mjs && node --check api/bridge.js && node --check lib/admin-config.mjs && node --check lib/server-setup.mjs && node --check dist/server-setup-ui.js && node --check lib/etsy-cloud.mjs && node --check dist/etsy-cloud-ui.js && node --check dist/etsy-callback.js && node --check dist/app.js && node --check dist/workspace.js && node --check dist/workspace-store.js && node --check dist/etsy-orders.js && node --check scripts/etsy-client.mjs && node --check scripts/etsy-download.mjs && node --check dist/sw.js",
     "test": "node --test test/*.test.mjs"
   },
   "engines": {

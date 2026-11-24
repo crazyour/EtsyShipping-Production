@@ -11,6 +11,8 @@ const state = {
   liveLoading: false,
   apiAdmin: false,
   apiAdminNotice: "",
+  serverConfigAdmin: false,
+  serverConfig: null,
 };
 const esc = (v) =>
   String(v ?? "").replace(
@@ -78,9 +80,13 @@ async function checkServer() {
 function clearSession() {
   state.apiAdmin = false;
   state.apiAdminNotice = "";
+  state.serverConfigAdmin = false;
+  state.serverConfig = null;
   if (state.workspace) {
     state.workspace.apiAdmin = false;
     state.workspace.apiAdminNotice = "";
+    state.workspace.serverConfigAdmin = false;
+    state.workspace.serverConfig = null;
     state.workspace.etsyConfigs = [];
     state.workspace.cloud.reset();
   }
@@ -105,7 +111,7 @@ function enterApp(mode, user) {
   $("#currentUser").textContent = user;
   $("#userInitial").textContent = user.slice(0, 1).toUpperCase();
   $("#currentRole").textContent =
-    mode === "demo" ? (state.apiAdmin ? "站点管理员" : "网页演练管理员") : "生产账号 · 只读";
+    mode === "demo" ? (state.apiAdmin || state.serverConfigAdmin ? "站点管理员" : "网页演练管理员") : "生产账号 · 只读";
   $("#environmentLabel").textContent =
     mode === "demo" ? "WEB WORKSPACE" : "PRODUCTION";
   $("#modeNotice").textContent =
@@ -123,10 +129,14 @@ function enterApp(mode, user) {
           meta: state.meta,
           apiAdmin: state.apiAdmin,
           apiAdminNotice: state.apiAdminNotice,
+          serverConfigAdmin: state.serverConfigAdmin,
+          serverConfig: state.serverConfig,
         });
       state.workspace.actor = user;
       state.workspace.apiAdmin = state.apiAdmin;
       state.workspace.apiAdminNotice = state.apiAdminNotice;
+      state.workspace.serverConfigAdmin = state.serverConfigAdmin;
+      state.workspace.serverConfig = state.serverConfig;
       state.workspace.store.actor = user;
     } catch (e) {
       toast(e.message);
@@ -185,6 +195,8 @@ async function login(e) {
       // Authority comes only from the server-issued HttpOnly session, never local roles.
       state.apiAdmin = data.apiAdmin === true;
       state.apiAdminNotice = data.apiAdminNotice || "";
+      state.serverConfigAdmin = data.serverConfigAdmin === true;
+      state.serverConfig = data.serverConfig || null;
       enterApp("demo", pick(data, "userName") || userName);
       return;
     }
@@ -395,6 +407,8 @@ if (state.token && state.user) enterApp("live", state.user);
 else request("/api/bridge?route=admin-session").then((data) => {
   if (data.admin === true && $("#appView").hidden) {
     state.apiAdmin = true;
+    state.serverConfigAdmin = data.serverConfigAdmin === true;
+    state.serverConfig = data.serverConfig || null;
     enterApp("demo", data.userName);
   }
 }).catch(() => {});

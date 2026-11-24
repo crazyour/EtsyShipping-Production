@@ -10,6 +10,7 @@ import {
 } from "./workspace-store.js";
 import { ORDER_CSV_COLUMNS, ORDER_TEMPLATE_FILENAME, ORDER_TEMPLATE_EXAMPLE } from "./order-template.js";
 import { EtsyCloudUI } from "./etsy-cloud-ui.js";
+import { openServerSetup } from "./server-setup-ui.js";
 
 export const pages = {
   dashboard: "经营看板",
@@ -81,9 +82,11 @@ function download(name, content, type = "text/plain;charset=utf-8") {
 }
 
 export class WorkspaceUI {
-  constructor({ root, actor, toast, request, meta, mode = "demo", apiAdmin = false, apiAdminNotice = "" }) {
+  constructor({ root, actor, toast, request, meta, mode = "demo", apiAdmin = false, apiAdminNotice = "", serverConfigAdmin = false, serverConfig = null }) {
     this.apiAdmin = apiAdmin;
     this.apiAdminNotice = apiAdminNotice;
+    this.serverConfigAdmin = serverConfigAdmin;
+    this.serverConfig = serverConfig;
     this.etsyConfigs = [];
     this.cloud = new EtsyCloudUI(this);
     this.root = root;
@@ -893,6 +896,7 @@ export class WorkspaceUI {
     else body = this.maintenance();
     return (
       this.heading("高级管理", "用户与权限、外部服务、运行诊断与维护日志。",
+        (this.serverConfigAdmin ? btn("服务器配置（管理员）", "server-config-open") : "") +
         btn("Etsy 订单同步", "cloud-open") + (this.apiAdmin ? btn("Etsy API 配置（管理员）", "etsy-config-open") : "")) +
       (this.apiAdminNotice ? `<p class="notice">${esc(this.apiAdminNotice)}</p>` : "") +
       this.catalogTabs(
@@ -1091,6 +1095,7 @@ export class WorkspaceUI {
     );
   }
   async action(action, id, el) {
+    if (action === "server-config-open") return openServerSetup(this);
     if (action === "cloud-open") return this.cloud.open();
     if (action.startsWith("cloud-")) return this.cloud.action(action.slice(6), id);
     switch (action) {
