@@ -56,17 +56,15 @@ try {
   await page.getByRole("heading", { name: "我的订单", exact: true }).waitFor();
   await openCloud();
   await page.getByRole("heading", { name: "API 接入与配置 · 仅管理员", exact: true }).waitFor();
-  for (const href of ["https://vercel.com/account/tokens", "https://console.upstash.com/", "https://www.etsy.com/developers/"]) {
+  for (const href of ["https://www.etsy.com/developers/"]) {
     const link = page.locator(`#pageContent a[href="${href}"]`);
     assert.equal(await link.getAttribute("target"), "_blank");
     assert.match(await link.getAttribute("rel"), /noopener/);
   }
-  await page.getByText("服务器配置要填什么？", { exact: true }).click();
-  await page.getByText("Upstash REST URL / REST Token", { exact: true }).waitFor();
-  await page.locator('[data-action="server-config-open"]').click();
-  await page.locator("#setupToken").waitFor();
-  await page.locator("#workDialog [data-close]").first().click();
-  assert.equal(await page.getByRole("heading", { name: "Etsy 订单同步", exact: true }).isVisible(), true);
+  assert.doesNotMatch(await page.locator("#pageContent").innerText(), /服务器准备|Vercel|Upstash|首次使用按下面步骤/);
+  assert.equal(await page.locator('[data-action="server-config-open"]').count(), 0);
+  await page.getByRole("heading", { name: "1. 接入 Etsy 店铺", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "2. 同步订单", exact: true }).waitFor();
   await page.locator('[data-action="etsy-config-open"]').click();
   await page.getByRole("heading", { name: "Etsy API 配置 · 仅管理员", exact: true }).waitFor();
   await page.locator('[data-action="etsy-config-edit"]').first().click();
@@ -108,15 +106,12 @@ try {
   assert.equal(await page.locator("#pageContent").textContent(), "");
   assert.equal(await page.locator("#loginView").isVisible(), true);
   configured = false; await login(); await openCloud();
-  await page.getByText("尚未配置服务端持久存储，不能保存 API 密钥。", { exact: true }).waitFor();
+  await page.getByText("订单服务暂不可用，请联系部署维护人员处理后重新登录。", { exact: true }).waitFor();
   assert.equal(await page.locator('[data-action="cloud-start"]').count(), 0);
   assert.equal(await page.getByText("Private Buyer", { exact: true }).count(), 0);
   assert.equal(await page.locator('[data-action="etsy-config-open"]').isDisabled(), true);
-  const before = calls.length;
-  await page.locator('[data-action="server-config-open"]').click();
-  await page.locator("#setupToken").waitFor();
-  assert.equal(calls.length, before); // Bootstrap opens without touching unavailable cloud storage.
-  await page.locator("#workDialog [data-close]").first().click();
+  assert.equal(await page.locator('[data-action="server-config-open"]').count(), 0);
+  assert.doesNotMatch(await page.locator("#pageContent").innerText(), /服务器准备|Vercel|Upstash|重新部署/);
   await page.locator("#logoutButton").click();
   administrator = false; await login(); await openCloud();
   assert.equal(await page.locator('[data-action="server-config-open"]').count(), 0);

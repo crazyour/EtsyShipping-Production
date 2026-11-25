@@ -924,6 +924,7 @@ export class WorkspaceUI {
   settings() {
     return (
       this.heading("连接与安全", "当前站点、原服务器与浏览器数据存储状态。") +
+      (this.serverConfigAdmin ? this.panel("部署维护 · 仅管理员", `<div class="panel-padding"><p>仅供部署维护人员补充缺失的服务器配置。日常添加店铺和同步订单无需操作此项，已有密钥和数据库连接不会被覆盖。</p>${btn("服务器配置（管理员）", "server-config-open")}</div>`) : "") +
       this.panel(
         "当前连接",
         `<div class="panel-padding"><dl class="detail-grid"><dt>运行方式</dt><dd>Vercel / 浏览器工作台</dd><dt>当前账号</dt><dd>${esc(this.actor)}</dd><dt>当前模式</dt><dd>浏览器演练，数据仅保存本机</dd><dt>原生产服务器</dt><dd>${esc(this.meta?.upstream || "未配置")}</dd><dt>数据保存</dt><dd>订单与设置：localStorage；图片：IndexedDB</dd><dt>账号密码</dt><dd>由 Vercel 服务端验证，不保存到本机工作区</dd></dl><p class="notice">同一浏览器的演练数据由此站点的使用者共享；清除浏览器数据后会丢失，请定期导出备份。跨设备协作需接入数据库。</p><div class="page-actions">${btn("导出备份", "backup")}${btn("打印设置", "printer")}</div></div>`,

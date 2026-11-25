@@ -26,27 +26,15 @@ export class EtsyCloudUI {
     if (!w.serverConfigAdmin && !w.apiAdmin) return "";
     const link = (label, href) => `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}（新窗口）</a>`;
     return w.panel("API 接入与配置 · 仅管理员", `<div class="panel-padding etsy-setup">
-      <p>首次使用按下面步骤接入；已完成配置的店铺，可直接在下方同步订单。所有配置表单都在当前页面打开。</p>
-      <section aria-labelledby="cloudServerTitle"><h3 id="cloudServerTitle">1. 服务器准备</h3>
-        <p>${w.apiAdmin ? "当前部署已加载安全存储配置；这不代表数据库连接或店铺授权已验证。" : "请先配置加密密钥和数据库，保存后到 Vercel 重新部署，再登录本网站。"}</p>
-        <div class="page-actions">${w.serverConfigAdmin ? '<button type="button" class="action-button" data-action="server-config-open">服务器配置（管理员）</button>' : ""}
-          ${link("获取 Vercel Token", "https://vercel.com/account/tokens")}${link("打开 Upstash 数据库", "https://console.upstash.com/")}</div>
-        <details><summary>服务器配置要填什么？</summary><dl>
-          <dt>管理员账号与密码</dt><dd>当前网站的管理员登录信息，不是 Etsy 密码。</dd>
-          <dt>临时 Vercel Token</dt><dd>用于把配置保存到当前项目，需具备对应团队和项目权限；仅当次使用，不保存。</dd>
-          <dt>API 凭据加密密钥</dt><dd>首次使用点击生成并安全备份；恢复已有数据库时必须使用原密钥。</dd>
-          <dt>Upstash REST URL / REST Token</dt><dd>填写同一 Redis 数据库的 REST 地址和读写 Token；此页面不会创建数据库。</dd>
-          <dt>正式网站源地址</dt><dd>填写正式网站的 HTTPS 地址，不带路径或末尾斜杠。</dd>
-        </dl></details>
-      </section>
-      <section aria-labelledby="cloudShopTitle"><h3 id="cloudShopTitle">2. 接入 Etsy 店铺</h3>
+      <p>添加店铺并完成授权，即可同步订单。已授权并启用的店铺，可直接使用下方同步按钮。</p>
+      <section aria-labelledby="cloudShopTitle"><h3 id="cloudShopTitle">1. 接入 Etsy 店铺</h3>
         <p>添加每家店铺的 Shop ID、名称、应用 Keystring 和 Shared Secret，保存后完成官方授权，并启用需要同步的店铺。可配置多家店铺。</p>
         <div class="page-actions"><button type="button" class="action-button" data-action="etsy-config-open" ${w.apiAdmin ? "" : 'disabled aria-describedby="cloudConfigBlocked"'}>店铺授权与配置</button>
           ${link("打开 Etsy 开发者平台", "https://www.etsy.com/developers/")}</div>
-        ${!w.apiAdmin ? '<p id="cloudConfigBlocked" class="muted">先完成第 1 步并重新部署、登录，才可填写店铺凭据。</p>' : ""}
+        ${!w.apiAdmin ? '<p id="cloudConfigBlocked" class="muted">服务暂未就绪，请联系部署维护人员处理后重新登录。</p>' : ""}
         <p class="muted">应用凭据从 Etsy 开发者平台获取，不是店铺登录密码。请在应用中登记本网站的回调地址：<code>${esc(location.origin + "/etsy-callback.html")}</code></p>
       </section>
-      <section aria-labelledby="cloudSyncTitle"><h3 id="cloudSyncTitle">3. 获取订单</h3><p>配置完成后，点击下方「一键同步所有店铺」。系统读取已启用且已授权店铺的订单并保存到网站后台，无需本地下载再上传。保存配置本身不会启动同步。</p></section>
+      <section aria-labelledby="cloudSyncTitle"><h3 id="cloudSyncTitle">2. 同步订单</h3><p>配置完成后，点击下方「一键同步所有店铺」。系统读取已启用且已授权店铺的订单并保存到网站后台，无需本地下载再上传。保存配置本身不会启动同步。</p></section>
     </div>`);
   }
   render() {
@@ -54,7 +42,7 @@ export class EtsyCloudUI {
     const heading = w.heading("Etsy 订单同步", "真实订单保存在网站后台，与浏览器演练订单分开；此页仅管理员可访问。",
       button("返回我的订单", "back"));
     const setup = this.setup();
-    if (!w.apiAdmin) return heading + setup + `<p class="notice" role="status">${esc(w.apiAdminNotice || "请使用服务端验证的管理员账号登录，并完成安全存储配置。")}</p>`;
+    if (!w.apiAdmin) return heading + setup + `<p class="notice" role="status">${w.serverConfigAdmin ? "订单服务暂不可用，请联系部署维护人员处理后重新登录。" : "请使用服务端验证的管理员账号登录。"}</p>`;
     const shops = this.job?.shops || [];
     const actions = `<div class="toolbar"><label for="cloudSince">补取历史的起始日期（可选）<input id="cloudSince" type="date" min="2000-01-01" max="${new Date().toISOString().slice(0, 10)}" value="${esc(this.since)}" ${this.running || this.busy ? "disabled" : ""}></label>
       ${button(this.running ? "正在自动同步…" : this.job?.status === "running" ? "继续未完成同步" : "一键同步所有店铺", "start", this.running || this.busy)}
