@@ -39,7 +39,7 @@ await page.route("**/api/bridge?*", async (route) => {
 async function login(user = "admin") {
   await page.locator("#userName").fill(user); await page.locator("#password").fill(password);
   await page.locator("#loginButton").click(); await page.locator("#pageContent h1").waitFor();
-  await page.locator('[data-page="admin"]').click();
+  await page.locator('[data-page="etsyCloud"]').click();
 }
 async function credentials() {
   await page.locator("#setupPassword").fill(password); await page.locator("#setupToken").fill(token);
@@ -52,7 +52,8 @@ async function fillSettings() {
 }
 try {
   await mkdir("test-output", { recursive: true }); await page.goto(base); await login();
-  assert.equal(await page.locator('[data-action="etsy-config-open"]').count(), 0);
+  assert.equal(await page.locator('[data-page="admin"]').count(), 0);
+  assert.equal(await page.locator('[data-action="etsy-config-open"]').isDisabled(), true);
   await page.locator('[data-action="server-config-open"]').click();
   await page.getByRole("heading", { name: "服务器配置 · 仅管理员", exact: true }).waitFor();
   assert.equal(await page.locator("#setupUser").inputValue(), "admin");

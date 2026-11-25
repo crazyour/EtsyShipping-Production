@@ -14,6 +14,8 @@ await page.route("**/api/bridge?*", async (route) => {
   let json = {};
   if (name === "meta") json = { demoEnabled: false, siteAdminConfigured: true };
   if (name === "login") json = admin ? { demoAccess: true, userName: "admin", apiAdmin: true } : { accessToken: "ordinary", userName: "worker" };
+  if (name === "etsy-sync-status") json = { job: null };
+  if (name === "etsy-cloud-orders") json = { items: [], total: 0 };
   if (name === "admin-etsy-config") {
     if (request.method() === "POST") {
       writes.push(request.postDataJSON()); saved = true; json = { item: { revision: 1 } };
@@ -27,7 +29,7 @@ async function login(user = "admin") {
   await page.locator("#password").fill("test-password");
   await page.locator("#loginButton").click();
   await page.locator("#pageContent h1").waitFor();
-  await page.locator('[data-page="admin"]').click();
+  await page.locator('[data-page="etsyCloud"]').click();
 }
 try {
   await mkdir("test-output", { recursive: true });

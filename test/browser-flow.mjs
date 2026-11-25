@@ -58,13 +58,14 @@ try {
     "returns",
     "tracking",
     "master",
-    "admin",
+    "etsyCloud",
     "settings",
     "dashboard",
   ]) {
     await navigate(name);
     assert.ok(await page.locator("#pageContent h1").textContent());
   }
+  assert.equal(await page.locator('[data-page="admin"]').count(), 0);
   await navigate("orders");
   await action("new-order");
   await fill({
@@ -165,38 +166,6 @@ try {
   assert.match(
     await page.locator("#pageContent").innerText(),
     /Browser Test Store/,
-  );
-  await navigate("admin");
-  for (const key of [
-    "users",
-    "accounts",
-    "diagnostics",
-    "audit",
-    "maintenance",
-  ]) {
-    await action("admin-tab", key);
-    assert.ok(await page.locator("#pageContent").innerText());
-  }
-  const backup = await page.evaluate(() =>
-    localStorage.getItem("etsyshipping.workspace.v1"),
-  );
-  await action("restore");
-  await page
-    .locator("#backupFile")
-    .setInputFiles({
-      name: "backup.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(backup),
-    });
-  await page.locator("#workForm input[type=checkbox]").check();
-  await submit();
-  assert.equal(
-    await page.evaluate(
-      () =>
-        JSON.parse(localStorage.getItem("etsyshipping.workspace.v1")).audit[0]
-          .action,
-    ),
-    "恢复工作区备份",
   );
   await navigate("upload");
   await action("import-orders");

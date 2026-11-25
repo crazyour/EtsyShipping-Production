@@ -45,12 +45,16 @@ async function login() {
   await page.locator("#loginButton").click(); await page.locator("#pageContent h1").waitFor();
 }
 async function openCloud() {
-  await page.locator('[data-page="orders"]').click(); await page.locator('[data-action="cloud-open"]').click();
+  assert.equal(await page.locator('[data-page="admin"]').count(), 0);
+  await page.locator('[data-page="etsyCloud"]').click();
   await page.getByRole("heading", { name: "Etsy 订单同步", exact: true }).waitFor();
 }
 try {
   await mkdir("test-output", { recursive: true });
   await page.goto(base); await login(); await openCloud();
+  await page.getByRole("button", { name: "返回我的订单", exact: true }).click();
+  await page.getByRole("heading", { name: "我的订单", exact: true }).waitFor();
+  await openCloud();
   await page.getByRole("heading", { name: "API 接入与配置 · 仅管理员", exact: true }).waitFor();
   for (const href of ["https://vercel.com/account/tokens", "https://console.upstash.com/", "https://www.etsy.com/developers/"]) {
     const link = page.locator(`#pageContent a[href="${href}"]`);

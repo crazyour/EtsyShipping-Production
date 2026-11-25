@@ -122,36 +122,6 @@ export const catalogs = {
       field("effective", "生效日期", "date", { required: true }),
     ],
   },
-  users: {
-    title: "用户、角色与范围",
-    singular: "演练成员",
-    fields: [
-      field("name", "用户名", "text", { required: true }),
-      field("displayName", "显示名称", "text", { required: true }),
-      field("role", "角色", "select", {
-        options: ["管理员", "订单操作员", "仓库操作员", "只读"],
-      }),
-      field("stores", "店铺范围"),
-      field("warehouses", "仓库范围"),
-      field("notes", "职责备注", "textarea"),
-    ],
-  },
-  accounts: {
-    title: "物流账号与凭据",
-    singular: "账号配置",
-    fields: [
-      field("name", "账号名称", "text", { required: true }),
-      field("provider", "物流商", "select", {
-        options: ["YunExpress", "SF IECS", "Yanwen"],
-      }),
-      field("accountId", "业务账号 ID"),
-      field("environment", "环境", "select", {
-        options: ["Sandbox", "Production"],
-      }),
-      field("secretRef", "服务端密钥变量名"),
-      field("notes", "连接说明", "textarea"),
-    ],
-  },
 };
 
 export function seedWorkspace() {
@@ -456,27 +426,6 @@ export function seedWorkspace() {
         enabled: true,
       },
     ],
-    users: [
-      {
-        id: "USER-01",
-        name: "admin",
-        displayName: "站点管理员",
-        role: "管理员",
-        stores: "全部",
-        warehouses: "全部",
-        enabled: true,
-      },
-    ],
-    accounts: [
-      {
-        id: "ACC-01",
-        name: "顺丰沙箱（待配置）",
-        provider: "SF IECS",
-        environment: "Sandbox",
-        secretRef: "SF_SANDBOX_SECRET",
-        enabled: false,
-      },
-    ],
     audit: [
       {
         id: uid("LOG"),
@@ -488,7 +437,6 @@ export function seedWorkspace() {
       },
     ],
     settings: { printer: "系统默认打印机", paper: "A4", autoPrint: false },
-    diagnostics: [],
   };
 }
 
@@ -514,7 +462,7 @@ export class WorkspaceStore {
       ].every((k) => Array.isArray(data[k]))
     )
       throw new Error(
-        "本地工作区数据格式不兼容。请导出备份后恢复，原数据未被覆盖。",
+        "本地工作区数据格式不兼容。请保留浏览器数据并联系维护人员，原数据未被覆盖。",
       );
     for (const key of [
       "orders",
@@ -570,14 +518,6 @@ export class WorkspaceStore {
       data.revision < 0
     )
       throw new Error("工作区设置或版本无效。");
-  }
-  restore(data) {
-    this.validate(data);
-    this.commit("恢复工作区备份", "浏览器本地", (draft) => {
-      const revision = draft.revision;
-      Object.assign(draft, structuredClone(data));
-      draft.revision = revision;
-    });
   }
   commit(action, target, fn, detail = "") {
     const latest = this.storage.getItem(STORAGE_KEY);
@@ -886,12 +826,6 @@ export class WorkspaceStore {
           throw new Error(
             "该标识已被业务引用，请保留原名称或代码；可停用后创建新资料。",
           );
-        if (
-          key === "users" &&
-          row?.name === "admin" &&
-          (values.name !== "admin" || values.role !== "管理员")
-        )
-          throw new Error("保留内置管理员名称与角色。");
         const next = {
           ...row,
           ...values,
@@ -905,11 +839,10 @@ export class WorkspaceStore {
     );
   }
   toggleCatalog(key, id) {
+    if (!Object.hasOwn(catalogs, key)) throw new Error("资料类型不存在。");
     this.commit("切换资料启用状态", id, (d) => {
       const row = d[key]?.find((r) => r.id === id);
       if (!row) throw new Error("资料不存在。");
-      if (key === "users" && row.name === "admin")
-        throw new Error("内置管理员不能停用。");
       row.enabled = !row.enabled;
     });
   }
@@ -927,15 +860,6 @@ export class WorkspaceStore {
       },
       reason,
     );
-  }
-  resetSynthetic() {
-    this.commit("清理演练业务数据", "Synthetic", (d) => {
-      d.orders = d.orders.filter((o) => !o.synthetic);
-      const ids = new Set(d.orders.map((o) => o.id));
-      d.shipments = d.shipments.filter((s) => ids.has(s.orderId));
-      d.tasks = d.tasks.filter((t) => ids.has(t.orderId));
-      d.returns = d.returns.filter((r) => ids.has(r.orderId));
-    });
   }
 }
 

@@ -52,7 +52,7 @@ export class EtsyCloudUI {
   render() {
     const w = this.w;
     const heading = w.heading("Etsy 订单同步", "真实订单保存在网站后台，与浏览器演练订单分开；此页仅管理员可访问。",
-      button("返回高级管理", "back"));
+      button("返回我的订单", "back"));
     const setup = this.setup();
     if (!w.apiAdmin) return heading + setup + `<p class="notice" role="status">${esc(w.apiAdminNotice || "请使用服务端验证的管理员账号登录，并完成安全存储配置。")}</p>`;
     const shops = this.job?.shops || [];
@@ -129,7 +129,7 @@ export class EtsyCloudUI {
       })) + `<p>买家备注：${esc(o.buyerMessage || "—")}</p><p class="muted">图片为商品图，不保证包含聊天附件或买家定制稿。此页不会创建物流单或回填 Etsy。</p>`, null, "", true);
   }
   async action(action, id) {
-    if (action === "back") { this.stop = true; this.w.navigate("admin"); return; }
+    if (action === "back") { this.stop = true; this.w.navigate("orders"); return; }
     if (!this.w.apiAdmin) throw new Error("此功能仅限服务端验证的管理员。");
     if (action === "start" || action === "retry") return this.run(action === "retry");
     if (action === "pause") { this.stop = true; return; }

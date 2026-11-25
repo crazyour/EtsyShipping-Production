@@ -146,9 +146,10 @@ test("storage quota failure rolls back in-memory data and cross-tab conflicts ar
   assert.throws(() => a.saveOrder({ ...order, externalId: "NEW" }), /未保存/);
   assert.equal(JSON.stringify(a.data), before);
 });
-test("catalog edits protect referenced identifiers and built-in admin", () => {
+test("catalog edits protect referenced identifiers and reject removed administration catalogs", () => {
   const s = new WorkspaceStore(memory());
-  assert.throws(() => s.toggleCatalog("users", "USER-01"), /不能停用/);
+  assert.throws(() => s.toggleCatalog("users", "USER-01"), /类型/);
+  assert.throws(() => s.saveCatalog("accounts", { name: "old" }), /类型/);
   assert.throws(
     () =>
       s.saveCatalog("skus", { ...s.data.skus[0], code: "RENAMED" }, "SKU-01"),
@@ -174,26 +175,25 @@ test("CSV round-trips quoted commas and line breaks and neutralizes spreadsheet 
   assert.throws(() => csvParse('a,b\n"broken'), /引号/);
   assert.throws(() => csvParse("a,a\n1,2"), /重复/);
 });
-test("synthetic maintenance preserves catalogs and an auditable record", () => {
-  const s = new WorkspaceStore(memory());
-  s.resetSynthetic();
-  assert.equal(s.data.orders.length, 0);
-  assert.equal(s.data.shipments.length, 0);
-  assert.equal(s.data.tasks.length, 0);
-  assert.equal(s.data.returns.length, 0);
-  assert.ok(s.data.stores.length);
-  assert.equal(s.data.audit[0].action, "清理演练业务数据");
-});
-test("backup restoration validates references and keeps revision monotonic", () => {
-  const s = new WorkspaceStore(memory());
-  const backup = structuredClone(s.data);
-  s.resetSynthetic();
-  s.restore(backup);
-  assert.equal(s.data.orders.length, 4);
-  assert.equal(s.data.revision, 2);
-  assert.equal(s.data.audit[0].action, "恢复工作区备份");
-  const broken = structuredClone(backup);
+test("removed administration preserves legacy data without exposing retired mutation methods", () => {
+  const storage = memory();
+  const original = new WorkspaceStore(storage).data;
+  original.users = [{ id: "OLD-USER", name: "legacy" }];
+  original.accounts = [{ id: "OLD-ACCOUNT", name: "legacy" }];
+  original.diagnostics = [{ ok: true }];
+  storage.value = JSON.stringify(original);
+  const s = new WorkspaceStore(storage);
+  assert.deepEqual(s.data, original);
+  assert.equal(s.restore, undefined);
+  assert.equal(s.resetSynthetic, undefined);
+  assert.throws(() => s.saveCatalog("users", { name: "changed" }), /类型/);
+  assert.throws(() => s.toggleCatalog("accounts", "OLD-ACCOUNT"), /类型/);
+  s.saveCatalog("stores", { name: "New Store", code: "NEW" });
+  const loaded = new WorkspaceStore(storage);
+  assert.deepEqual(loaded.data.orders, original.orders);
+  assert.deepEqual(loaded.data.users, original.users);
+  assert.deepEqual(loaded.data.accounts, original.accounts);
+  const broken = structuredClone(loaded.data);
   broken.tasks[0].orderId = "missing";
-  assert.throws(() => s.restore(broken), /引用/);
-  assert.equal(s.data.revision, 2);
+  assert.throws(() => s.validate(broken), /引用/);
 });

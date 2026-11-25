@@ -75,6 +75,11 @@ test("Vercel 站点管理员凭据仅在服务端验证", async () => {
   const originalUserName = process.env.SITE_ADMIN_USERNAME;
   const originalPassword = process.env.SITE_ADMIN_PASSWORD;
   const originalFetch = globalThis.fetch;
+  // This test covers bootstrap login without storage. Production builds may already
+  // have real credentials; never inherit them into this fixture or contact real Redis.
+  const storageKeys = ["ETSY_CONFIG_ENCRYPTION_KEY", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN", "SITE_PUBLIC_ORIGIN"];
+  const originalStorage = Object.fromEntries(storageKeys.map((key) => [key, process.env[key]]));
+  for (const key of storageKeys) delete process.env[key];
   let forwarded = false;
   process.env.VERCEL = "1";
   process.env.SITE_ADMIN_USERNAME = "admin";
@@ -86,6 +91,7 @@ test("Vercel 站点管理员凭据仅在服务端验证", async () => {
     });
     assert.equal(result.status, 200);
     assert.equal(result.data.demoAccess, true);
+    assert.equal(result.data.apiAdmin, false);
     assert.deepEqual(result.data.roles, ["管理员"]);
     assert.equal(forwarded, false);
   } finally {
@@ -96,6 +102,10 @@ test("Vercel 站点管理员凭据仅在服务端验证", async () => {
     if (originalPassword === undefined) delete process.env.SITE_ADMIN_PASSWORD;
     else process.env.SITE_ADMIN_PASSWORD = originalPassword;
     globalThis.fetch = originalFetch;
+    for (const key of storageKeys) {
+      if (originalStorage[key] === undefined) delete process.env[key];
+      else process.env[key] = originalStorage[key];
+    }
   }
 });
 

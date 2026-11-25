@@ -158,8 +158,10 @@ function showPage(page) {
   $("#sidebar").classList.remove("open");
   $("#menuButton").setAttribute("aria-expanded", "false");
   $("#workspaceTitle").textContent = pages[page] || "工作台";
-  if (state.mode === "demo") state.workspace?.navigate(page);
-  else renderLive();
+  if (state.mode === "demo") {
+    if (page === "etsyCloud") state.workspace?.cloud.open().catch((e) => toast(e.message));
+    else state.workspace?.navigate(page);
+  } else renderLive();
   $("#pageContent").focus({ preventScroll: true });
 }
 async function login(e) {

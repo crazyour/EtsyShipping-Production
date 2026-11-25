@@ -21,7 +21,6 @@ export const pages = {
   returns: "Etsy 人工回填",
   tracking: "物流状态",
   master: "业务设置",
-  admin: "高级管理",
   settings: "连接与安全",
   etsyCloud: "Etsy 订单同步",
 };
@@ -98,7 +97,6 @@ export class WorkspaceUI {
     this.store = new WorkspaceStore(localStorage, actor);
     this.page = "dashboard";
     this.tab = "stores";
-    this.adminTab = "users";
     this.selection = "";
     this.query = "";
     this.filter = "";
@@ -108,7 +106,6 @@ export class WorkspaceUI {
     this.selected = new Set();
     this.attachments = [];
     this.attachmentUrls = [];
-    this.diagnostics = [];
     this.clickHandler = (e) => {
       const control = e.target.closest("[data-action]");
       if (control)
@@ -204,7 +201,6 @@ export class WorkspaceUI {
       returns: () => this.returns(),
       tracking: () => this.tracking(),
       master: () => this.catalogPage(),
-      admin: () => this.admin(),
       settings: () => this.settings(),
       etsyCloud: () => this.cloud.render(),
     };
@@ -329,7 +325,6 @@ export class WorkspaceUI {
       this.panel(
         "最近操作记录",
         this.auditTable(this.data.audit.slice(0, 5)),
-        btn("查看日志", "audit"),
       )
     );
   }
@@ -499,7 +494,7 @@ export class WorkspaceUI {
         "按原版流程分别上传订单截图和产品辨认图，再核对资料。",
         btn("手工新建订单", "new-order", "", true),
       ) +
-      `<div class="notice">AI 服务未连接。可先上传图片留档，粘贴订单文本提取字段，再人工复核；此处不会产生虚假的 AI 识别结果。<div class="page-actions"><button class="action-button" disabled>开始 AI 识别（服务未连接）</button>${btn("检查服务连接", "diagnose")}</div></div>` +
+      `<div class="notice">AI 服务未连接。可先上传图片留档，粘贴订单文本提取字段，再人工复核；此处不会产生虚假的 AI 识别结果。<div class="page-actions"><button class="action-button" disabled>开始 AI 识别（服务未连接）</button></div></div>` +
       `<div class="upload-grid">${["订单截图", "产品辨认图"]
         .map((kind, i) =>
           this.panel(
@@ -760,7 +755,6 @@ export class WorkspaceUI {
       this.heading(
         "物流状态与异常",
         "查看演练物流单、记录人工轨迹和异常处理结果。",
-        btn("检查上游连接", "diagnose"),
       ) +
       this.panel(
         "物流订单",
@@ -839,7 +833,7 @@ export class WorkspaceUI {
     );
   }
   catalogTabs(keys, selected) {
-    return `<nav class="subtabs" aria-label="资料分类">${keys.map((key) => `<button data-action="${keys.includes("users") ? "admin-tab" : "catalog"}" data-id="${key}" class="${selected === key ? "active" : ""}" aria-current="${selected === key ? "page" : "false"}">${esc(catalogs[key]?.title || { diagnostics: "外部服务诊断", audit: "审计日志", maintenance: "测试数据维护" }[key])}</button>`).join("")}</nav>`;
+    return `<nav class="subtabs" aria-label="资料分类">${keys.map((key) => `<button data-action="catalog" data-id="${key}" class="${selected === key ? "active" : ""}" aria-current="${selected === key ? "page" : "false"}">${esc(catalogs[key].title)}</button>`).join("")}</nav>`;
   }
   catalog(key) {
     const cfg = catalogs[key];
@@ -847,19 +841,15 @@ export class WorkspaceUI {
     const rows = this.data[key].filter((r) => this.matches(r));
     return this.panel(
       cfg.title,
-      (key === "users"
-        ? '<p class="notice">这里维护演练成员与权限范围。创建、停用和重置记录不会改变生产登录账号或服务端权限。</p>'
-        : key === "accounts"
-          ? '<p class="notice">只保存账号名称和服务端环境变量名。真实 API 密钥应由服务器保管，不存入浏览器。</p>'
-          : key === "stores"
-            ? '<p class="notice">Etsy 授权状态：未连接。Shop ID 是配置记录，不代表已完成 OAuth 授权。</p>'
-            : "") +
+      (key === "stores"
+        ? '<p class="notice">Etsy 授权状态：未连接。Shop ID 是配置记录，不代表已完成 OAuth 授权。</p>'
+        : "") +
         this.toolbar() +
         table(
           [...fs.map((f) => esc(f.label)), "状态", "操作"],
           rows.map(
             (r) =>
-              `<tr>${fs.map((f) => `<td>${esc(r[f.key] ?? "—")}</td>`).join("")}<td>${tag(r.enabled ? "启用" : "停用")}</td><td><div class="row-actions">${btn("编辑", "edit-catalog", key + ":" + r.id)}${btn(r.enabled ? "停用" : "启用", "toggle-catalog", key + ":" + r.id)}${key === "users" ? btn("重置说明", "reset-user", r.id) : ""}${key === "templates" ? btn("预览", "template-preview", r.id) : ""}</div></td></tr>`,
+              `<tr>${fs.map((f) => `<td>${esc(r[f.key] ?? "—")}</td>`).join("")}<td>${tag(r.enabled ? "启用" : "停用")}</td><td><div class="row-actions">${btn("编辑", "edit-catalog", key + ":" + r.id)}${btn(r.enabled ? "停用" : "启用", "toggle-catalog", key + ":" + r.id)}${key === "templates" ? btn("预览", "template-preview", r.id) : ""}</div></td></tr>`,
           ),
         ),
       btn("导出 CSV", "export-catalog", key) +
@@ -879,31 +869,6 @@ export class WorkspaceUI {
       },
       "保存",
       true,
-    );
-  }
-  admin() {
-    const key = this.adminTab;
-    let body;
-    if (catalogs[key]) body = this.catalog(key);
-    else if (key === "audit")
-      body = this.panel(
-        "审计日志",
-        this.toolbar() +
-          this.auditTable(this.data.audit.filter((a) => this.matches(a))),
-        btn("导出日志", "export-audit"),
-      );
-    else if (key === "diagnostics") body = this.diagnosticsPage();
-    else body = this.maintenance();
-    return (
-      this.heading("高级管理", "用户与权限、外部服务、运行诊断与维护日志。",
-        (this.serverConfigAdmin ? btn("服务器配置（管理员）", "server-config-open") : "") +
-        btn("Etsy 订单同步", "cloud-open") + (this.apiAdmin ? btn("Etsy API 配置（管理员）", "etsy-config-open") : "")) +
-      (this.apiAdminNotice ? `<p class="notice">${esc(this.apiAdminNotice)}</p>` : "") +
-      this.catalogTabs(
-        ["users", "accounts", "diagnostics", "audit", "maintenance"],
-        key,
-      ) +
-      body
     );
   }
   auditTable(rows) {
@@ -956,62 +921,14 @@ export class WorkspaceUI {
       if (row) this.dialog.querySelector("#field-shopId").readOnly = true;
     });
   }
-  diagnosticsPage() {
-    return this.panel(
-      "外部服务诊断",
-      `<div class="panel-padding"><p>检测 Vercel 网页接口与原生产服务是否可访问。AI、Etsy、物流账号需要服务端提供独立检测接口。</p><div class="page-actions">${btn("运行连接检查", "diagnose", "", true)}</div></div>` +
-        table(
-          ["服务", "状态", "最近检查", "结果"],
-          [
-            ["网页接口", this.diagnostics.find((d) => d.name === "网页接口")],
-            [
-              "原生产服务器",
-              this.diagnostics.find((d) => d.name === "原生产服务器"),
-            ],
-            ["AI 识别", null],
-            ["Etsy OAuth", null],
-            ["物流商 API", null],
-          ].map(
-            ([name, d]) =>
-              `<tr><td>${name}</td><td>${tag(d?.ok ? "可访问" : d ? "连接失败" : "未连接 / 未检测")}</td><td>${date(d?.at)}</td><td>${esc(d?.message || "未配置独立检测接口")}</td></tr>`,
-          ),
-        ),
-    );
-  }
-  maintenance() {
-    return this.panel(
-      "测试数据维护",
-      `<div class="panel-padding"><h3>工作区备份</h3><p>JSON 备份包含当前浏览器的业务资料和操作日志，不包含图片原件。</p><div class="page-actions">${btn("导出工作区备份", "backup")}${btn("恢复工作区备份", "restore")}${btn("查看归档订单", "archived")}</div><hr><h3>清理 Synthetic 演练数据</h3><p>清理本机标记为演练的订单、物流单、仓库和回填任务，保留基础资料与审计日志。建议先下载备份。</p>${btn("清理演练业务数据", "reset-data")}</div>`,
-    );
-  }
   settings() {
     return (
       this.heading("连接与安全", "当前站点、原服务器与浏览器数据存储状态。") +
       this.panel(
         "当前连接",
-        `<div class="panel-padding"><dl class="detail-grid"><dt>运行方式</dt><dd>Vercel / 浏览器工作台</dd><dt>当前账号</dt><dd>${esc(this.actor)}</dd><dt>当前模式</dt><dd>浏览器演练，数据仅保存本机</dd><dt>原生产服务器</dt><dd>${esc(this.meta?.upstream || "未配置")}</dd><dt>数据保存</dt><dd>订单与设置：localStorage；图片：IndexedDB</dd><dt>账号密码</dt><dd>由 Vercel 服务端验证，不保存到本机工作区</dd></dl><p class="notice">同一浏览器的演练数据由此站点的使用者共享；清除浏览器数据后会丢失，请定期导出备份。跨设备协作需接入数据库。</p><div class="page-actions">${btn("检查连接", "diagnose")}${btn("导出备份", "backup")}${btn("打印设置", "printer")}</div></div>`,
+        `<div class="panel-padding"><dl class="detail-grid"><dt>运行方式</dt><dd>Vercel / 浏览器工作台</dd><dt>当前账号</dt><dd>${esc(this.actor)}</dd><dt>当前模式</dt><dd>浏览器演练，数据仅保存本机</dd><dt>原生产服务器</dt><dd>${esc(this.meta?.upstream || "未配置")}</dd><dt>数据保存</dt><dd>订单与设置：localStorage；图片：IndexedDB</dd><dt>账号密码</dt><dd>由 Vercel 服务端验证，不保存到本机工作区</dd></dl><p class="notice">同一浏览器的演练数据由此站点的使用者共享；清除浏览器数据后会丢失，请定期导出备份。跨设备协作需接入数据库。</p><div class="page-actions">${btn("导出备份", "backup")}${btn("打印设置", "printer")}</div></div>`,
       )
     );
-  }
-  async diagnose() {
-    this.toast("正在检查网页和原服务器连接…");
-    const jobs = [
-      ["网页接口", "meta"],
-      ["原生产服务器", "runtime"],
-    ];
-    this.diagnostics = await Promise.all(
-      jobs.map(async ([name, route]) => {
-        try {
-          await this.request("/api/bridge?route=" + route);
-          return { name, ok: true, at: now(), message: "接口响应正常" };
-        } catch (e) {
-          return { name, ok: false, at: now(), message: e.message };
-        }
-      }),
-    );
-    this.adminTab = "diagnostics";
-    this.navigate("admin");
-    this.toast("连接检查完成");
   }
   async change(e) {
     const input = e.target;
@@ -1321,11 +1238,6 @@ export class WorkspaceUI {
         this.page = "master";
         this.render();
         break;
-      case "admin-tab":
-        this.adminTab = id;
-        this.query = "";
-        this.render();
-        break;
       case "new-catalog":
         this.catalogForm(id);
         break;
@@ -1356,86 +1268,11 @@ export class WorkspaceUI {
           "text/csv;charset=utf-8",
         );
         break;
-      case "reset-user":
-        this.dialogForm(
-          "账号密码重置",
-          `<p>这是演练成员资料，不具备独立登录密码。</p><p>站点管理员密码由 Vercel 的 SITE_ADMIN_PASSWORD 控制；生产用户需要由原服务器管理员重置。</p>`,
-          null,
-        );
-        break;
-      case "audit":
-        this.adminTab = "audit";
-        this.page = "admin";
-        this.query = "";
-        this.render();
-        break;
-      case "export-audit":
-        download(
-          "审计日志.csv",
-          csvEncode(this.data.audit, [
-            "at",
-            "actor",
-            "action",
-            "target",
-            "detail",
-          ]),
-          "text/csv;charset=utf-8",
-        );
-        break;
-      case "diagnose":
-        await this.diagnose();
-        break;
       case "backup":
         download(
           "EtsyShipping-备份-" + now().slice(0, 10) + ".json",
           JSON.stringify(this.data, null, 2),
           "application/json",
-        );
-        break;
-      case "restore":
-        this.dialogForm(
-          "恢复工作区备份",
-          '<p>将用 JSON 备份替换当前浏览器的业务数据与设置。请先导出当前工作区。图片原件不会从 JSON 恢复。</p><label for="backupFile">选择工作区 JSON 备份</label><input type="file" id="backupFile" accept=".json,application/json" required><label class="check-label"><input type="checkbox" required>我已备份当前工作区，并确认替换</label>',
-          async (_v, form) => {
-            const f = form.querySelector("#backupFile").files[0];
-            if (f.size > 5 * 1024 * 1024)
-              throw new Error("备份文件不能超过 5 MB。");
-            let data;
-            try {
-              data = JSON.parse(await f.text());
-            } catch {
-              throw new Error("JSON 文件格式无效。");
-            }
-            this.store.restore(data);
-            this.selected.clear();
-            this.toast("工作区已从备份恢复");
-          },
-          "验证并恢复",
-        );
-        break;
-      case "archived":
-        this.dialogForm(
-          "已归档订单",
-          this.orderTable(
-            this.data.orders.filter((o) => o.archived),
-            false,
-          ),
-          null,
-          "",
-          true,
-        );
-        this.bindDialogActions();
-        break;
-      case "reset-data":
-        this.dialogForm(
-          "清理演练业务数据",
-          `<p>将移除当前浏览器的演练订单、物流和仓库任务，保留基础资料与日志。此操作不影响原生产服务器。恢复需要备份。</p>${fields([field("confirmation", "输入 CLEAN 确认", "text", { required: true })])}`,
-          (v) => {
-            if (v.confirmation !== "CLEAN") throw new Error("请输入 CLEAN。");
-            this.store.resetSynthetic();
-            this.toast("演练业务数据已清理");
-          },
-          "确认清理",
         );
         break;
       case "download-order-template":
