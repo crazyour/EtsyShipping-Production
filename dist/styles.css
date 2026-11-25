@@ -1022,6 +1022,24 @@ dialog::backdrop {
   grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
+.etsy-setup section + section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.etsy-setup .page-actions {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.etsy-setup a, .etsy-setup code, .etsy-setup dd {
+  overflow-wrap: anywhere;
+}
+.etsy-setup summary {
+  cursor: pointer;
+  padding: 12px 0;
+}
+.etsy-setup dt { font-weight: 600; margin-top: 12px; }
+.etsy-setup dd { margin: 4px 0 0; }
 .form-field label {
   font-size: 12px;
 }
